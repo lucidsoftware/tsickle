@@ -10,10 +10,14 @@ export interface Options {
   // If true, convert every type to the Closure {?} type, which means
   // "don't check types".
   untyped?: boolean;
+
   // If provided a function that logs an internal warning.
   // These warnings are not actionable by an end user and should be hidden
   // by default.
   logWarning?: (warning: ts.Diagnostic) => void;
+
+  // If true, do not error when types are found in comments.
+  ignoreTypesInComments?: boolean;
 }
 
 export interface Output {
@@ -104,7 +108,7 @@ const JSDOC_TAGS_WITH_TYPES = ['export', 'param', 'return'];
  * getJSDocAnnotation parses JSDoc out of a comment string.
  * Returns null if comment is not JSDoc.
  */
-export function getJSDocAnnotation(comment: string): JSDocComment {
+export function getJSDocAnnotation(comment: string, ignoreTypesInComments = false): JSDocComment {
   // TODO(evanm): this is a pile of hacky regexes for now, because we
   // would rather use the better TypeScript implementation of JSDoc
   // parsing.  https://github.com/Microsoft/TypeScript/issues/7393
@@ -123,10 +127,14 @@ export function getJSDocAnnotation(comment: string): JSDocComment {
         // A synonym for 'return'.
         tagName = 'return';
       }
-      if (arrayIncludes(JSDOC_TAGS_BLACKLIST, tagName)) {
+      if (ignoreTypesInComments) {
+        continue;
+      } else if (arrayIncludes(JSDOC_TAGS_BLACKLIST, tagName)) {
         throw new Error(`@${tagName} annotations are not allowed`);
       }
-      if (arrayIncludes(JSDOC_TAGS_WITH_TYPES, tagName) && text[0] === '{') {
+      if (ignoreTypesInComments) {
+        continue;
+      } else if (arrayIncludes(JSDOC_TAGS_WITH_TYPES, tagName) && text[0] === '{') {
         throw new Error('type annotations (using {...}) are not allowed');
       }
 
@@ -721,7 +729,7 @@ class Annotator extends Rewriter {
     let {pos, end} = comments[comments.length - 1];
     let comment = text.substring(pos, end);
     try {
-      return getJSDocAnnotation(comment);
+      return getJSDocAnnotation(comment, this.options.ignoreTypesInComments);
     } catch (e) {
       this.error(node, e.message, node.getFullStart() + pos);
       return null;

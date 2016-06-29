@@ -19,6 +19,12 @@ interface Settings {
 
   /** If true, log internal debug warnings to the console. */
   verbose?: boolean;
+
+  /**
+   * If true, do not error when types are found in comments. Useful for
+   * building third party libraries which have types in comments.
+   */
+  ignoreTypesInComments: boolean;
 }
 
 function usage() {
@@ -28,8 +34,9 @@ example:
   tsickle --externs=foo/externs.js -- -p src --noImplicitAny
 
 tsickle flags are:
-  --externs=PATH     save generated Closure externs.js to PATH
-  --untyped          convert every type in TypeScript to the Closure {?} type
+  --externs=PATH          save generated Closure externs.js to PATH
+  --untyped               convert every type in TypeScript to the Closure {?} type
+  --ignoreTypesInComments do not error when encountering any jsdoc type information in comments
 `);
 }
 
@@ -38,7 +45,7 @@ tsickle flags are:
  * the arguments to pass on to tsc.
  */
 function loadSettingsFromArgs(args: string[]): {settings: Settings, tscArgs: string[]} {
-  let settings: Settings = {isUntyped: false};
+  let settings: Settings = {isUntyped: false, ignoreTypesInComments: false};
   let parsedArgs = minimist(args);
   for (let flag of Object.keys(parsedArgs)) {
     switch (flag) {
@@ -55,6 +62,9 @@ function loadSettingsFromArgs(args: string[]): {settings: Settings, tscArgs: str
         break;
       case 'verbose':
         settings.verbose = true;
+        break;
+      case 'ignoreTypesInComments':
+        settings.ignoreTypesInComments = true;
         break;
       case '_':
         // This is part of the minimist API, and holds args after the '--'.
@@ -163,6 +173,7 @@ function toClosureJS(options: ts.CompilerOptions, fileNames: string[], settings:
 
   const tsickleOptions: tsickle.Options = {
     untyped: settings.isUntyped,
+    ignoreTypesInComments: settings.ignoreTypesInComments,
     logWarning: settings.verbose ?
         (warning: ts.Diagnostic) => { console.error(tsickle.formatDiagnostics([warning])); } :
         null,
