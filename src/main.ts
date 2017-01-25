@@ -25,6 +25,9 @@ export interface Settings {
   /** If provided, convert every type to the Closure {?} type */
   isUntyped: boolean;
 
+  /** If provided, convert every type in function bodies to the Closure {?} type */
+  isUntypedFunctionBodies: boolean;
+
   /** If true, log internal debug warnings to the console. */
   verbose?: boolean;
 }
@@ -36,8 +39,9 @@ example:
   tsickle --externs=foo/externs.js -- -p src --noImplicitAny
 
 tsickle flags are:
-  --externs=PATH     save generated Closure externs.js to PATH
-  --untyped          convert every type in TypeScript to the Closure {?} type
+  --externs=PATH          save generated Closure externs.js to PATH
+  --untyped               convert every type in TypeScript to the Closure {?} type
+  --untypedFunctionBodies convert every type in TypeScript function bodies to the Closure {?} type
 `);
 }
 
@@ -46,7 +50,7 @@ tsickle flags are:
  * the arguments to pass on to tsc.
  */
 function loadSettingsFromArgs(args: string[]): {settings: Settings, tscArgs: string[]} {
-  let settings: Settings = {isUntyped: false};
+  let settings: Settings = {isUntyped: false, isUntypedFunctionBodies: false};
   let parsedArgs = minimist(args);
   for (let flag of Object.keys(parsedArgs)) {
     switch (flag) {
@@ -60,6 +64,9 @@ function loadSettingsFromArgs(args: string[]): {settings: Settings, tscArgs: str
         break;
       case 'untyped':
         settings.isUntyped = true;
+        break;
+      case 'untypedFunctionBodies':
+        settings.isUntypedFunctionBodies = true;
         break;
       case 'verbose':
         settings.verbose = true;
@@ -152,6 +159,7 @@ export function toClosureJS(
     googmodule: true,
     es5Mode: false,
     tsickleTyped: !settings.isUntyped,
+    tsickleFunctionBodiesTyped: !settings.isUntypedFunctionBodies,
     prelude: '',
   };
 
