@@ -434,7 +434,24 @@ class ClosureRewriter extends Rewriter {
     if (!type) {
       type = typeChecker.getTypeAtLocation(context);
     }
-    return this.newTypeTranslator(context).translate(type);
+    let translated = this.newTypeTranslator(context).translate(type);
+
+    if (!this.options.tsickleFunctionBodiesTyped) {
+      if(!hasModifierFlag(context, VISIBILITY_FLAGS)) {
+        for(let c = context.parent; c; c = c.parent) {
+          if(c.kind == ts.SyntaxKind.FunctionDeclaration ||
+            c.kind == ts.SyntaxKind.Constructor ||
+            c.kind == ts.SyntaxKind.MethodDeclaration ||
+            c.kind == ts.SyntaxKind.GetAccessor ||
+            c.kind == ts.SyntaxKind.SetAccessor) {
+            translated = '?';
+            break;
+          }
+        }
+      }
+    }
+
+    return translated;
   }
 
   newTypeTranslator(context: ts.Node) {

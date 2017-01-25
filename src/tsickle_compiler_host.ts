@@ -44,6 +44,8 @@ export interface Options {
    * Annotation will be slower because every import must be resolved.
    */
   convertIndexImportShorthand?: boolean;
+
+  tsickleFunctionBodiesTyped?: boolean;
 }
 
 /**
@@ -321,6 +323,7 @@ export class TsickleCompilerHost implements ts.CompilerHost {
     // Don't tsickle-process any d.ts that isn't a compilation target;
     // this means we don't process e.g. lib.d.ts.
     if (isDefinitions && this.environment.shouldSkipTsickleProcessing(fileName)) return sourceFile;
+
 
     let {output, externs, diagnostics, sourceMap} = tsickle.annotate(
         program, sourceFile, this.environment.pathToModuleName.bind(this.environment), this.options,
