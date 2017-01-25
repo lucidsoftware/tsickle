@@ -16,7 +16,8 @@ import * as ts from 'typescript';
 
 import * as cliSupport from './cli_support';
 import * as tsickle from './tsickle';
-import {toArray, createOutputRetainingCompilerHost, createSourceReplacingCompilerHost} from './util';
+import {toArray, createOutputRetainingCompilerHost} from './util';
+
 /** Tsickle settings passed on the command line. */
 export interface Settings {
   /** If provided, path to save externs to. */
@@ -25,8 +26,18 @@ export interface Settings {
   /** If provided, convert every type to the Closure {?} type */
   isUntyped: boolean;
 
+  /** If provided, convert every type in function bodies to the Closure {?} type */
+  isUntypedFunctionBodies: boolean;
+
   /** If true, log internal debug warnings to the console. */
   verbose?: boolean;
+
+  /** If true, transpile only rather than type check and annotate */
+  devMode?:boolean;
+
+  /** When converting modules to goog format, module names should be
+   * relative to this location */
+  googModuleRootDir?:string;
 }
 
 function usage() {
@@ -36,9 +47,22 @@ example:
   tsickle --externs=foo/externs.js -- -p src --noImplicitAny
 
 tsickle flags are:
-  --externs=PATH     save generated Closure externs.js to PATH
-  --untyped          convert every type in TypeScript to the Closure {?} type
+  --externs=PATH          save generated Closure externs.js to PATH
+  --untyped               convert every type in TypeScript to the Closure {?} type
+  --untypedFunctionBodies convert every type in TypeScript function bodies to the Closure {?} type
 `);
+}
+
+function tsNameToJsName(tsName:string, options:ts.CompilerOptions, settings:Settings) {
+  if(options.outDir) {
+    let rootDir = ts.sys.resolvePath(settings.googModuleRootDir || process.cwd());
+    let absPath = ts.sys.resolvePath(tsName);
+    let relativePath = path.relative(rootDir, absPath);
+
+    return options.outDir + '/' + relativePath.replace(/\.ts$/, '.js');
+  } else {
+    return tsName.replace(/\.ts$/, '.js');
+  }
 }
 
 /**
@@ -46,7 +70,7 @@ tsickle flags are:
  * the arguments to pass on to tsc.
  */
 function loadSettingsFromArgs(args: string[]): {settings: Settings, tscArgs: string[]} {
-  let settings: Settings = {isUntyped: false};
+  let settings: Settings = {isUntyped: false, isUntypedFunctionBodies: false};
   let parsedArgs = minimist(args);
   for (let flag of Object.keys(parsedArgs)) {
     switch (flag) {
@@ -61,8 +85,17 @@ function loadSettingsFromArgs(args: string[]): {settings: Settings, tscArgs: str
       case 'untyped':
         settings.isUntyped = true;
         break;
+      case 'untypedFunctionBodies':
+        settings.isUntypedFunctionBodies = true;
+        break;
       case 'verbose':
         settings.verbose = true;
+        break;
+      case 'devmode':
+        settings.devMode = true;
+        break;
+      case 'googModuleRootDir':
+        settings.googModuleRootDir = parsedArgs[flag];
         break;
       case '_':
         // This is part of the minimist API, and holds args after the '--'.
@@ -124,6 +157,78 @@ function loadTscConfig(args: string[], allDiagnostics: ts.Diagnostic[]):
 }
 
 /**
+ * Constructs a new ts.CompilerHost that overlays sources in substituteSource
+ * over another ts.CompilerHost.
+ *
+ * @param substituteSource A map of source file name -> overlay source text.
+ */
+function createSourceReplacingCompilerHost(
+    substituteSource: Map<string, string>, delegate: ts.CompilerHost): ts.CompilerHost {
+  return {
+    getSourceFile,
+    getCancellationToken: delegate.getCancellationToken,
+    getDefaultLibFileName: delegate.getDefaultLibFileName,
+    writeFile: delegate.writeFile,
+    getCurrentDirectory: delegate.getCurrentDirectory,
+    getCanonicalFileName: delegate.getCanonicalFileName,
+    useCaseSensitiveFileNames: delegate.useCaseSensitiveFileNames,
+    getNewLine: delegate.getNewLine,
+    fileExists: delegate.fileExists,
+    readFile: delegate.readFile,
+    directoryExists: delegate.directoryExists,
+    getDirectories: delegate.getDirectories,
+  };
+
+  function getSourceFile(
+      fileName: string, languageVersion: ts.ScriptTarget,
+      onError?: (message: string) => void): ts.SourceFile {
+    let path: string = ts.sys.resolvePath(fileName);
+    let sourceText = substituteSource.get(path);
+    if (sourceText) {
+      return ts.createSourceFile(path, sourceText, languageVersion);
+    }
+    return delegate.getSourceFile(path, languageVersion, onError);
+  }
+}
+
+function toClosureJSDevMode(
+    options: ts.CompilerOptions, fileNames: string[], settings: Settings,
+    allDiagnostics: ts.Diagnostic[]): {jsFiles: Map<string, string>, externs: string}|null {
+  let rootDir = ts.sys.resolvePath(settings.googModuleRootDir || process.cwd());
+  let jsFiles: Map<string, string> = new Map<string, string>();
+  fileNames.forEach(function(tsName) {
+    if(tsName.substr(-5) != '.d.ts') {
+      let jsName = tsNameToJsName(tsName, options, settings);
+
+      let jsTime = 0;
+      try {
+        jsTime = fs.statSync(jsName).mtime.getTime();
+      } catch(e) {}
+
+      if(fs.statSync(tsName).mtime.getTime() > jsTime) {
+        let code = fs.readFileSync(tsName, {encoding:'utf-8'});
+
+        let result = ts.transpileModule(code, {
+          compilerOptions:options,
+          fileName:tsName,
+          reportDiagnostics:true,
+          moduleName:tsName,
+        });
+
+        allDiagnostics.push.apply(allDiagnostics, result.diagnostics);
+
+        let absPath = ts.sys.resolvePath(jsName);
+        let relativePath = path.relative(rootDir, absPath);
+        let {output} = tsickle.processES5(relativePath, relativePath, result.outputText, cliSupport.pathToModuleName);
+        jsFiles.set(jsName, output);
+      }
+    }
+  });
+
+  return { jsFiles: jsFiles, externs: '' };
+}
+
+/**
  * Compiles TypeScript code into Closure-compiler-ready JS.
  * Doesn't write any files to disk; all JS content is returned in a map.
  */
@@ -131,6 +236,7 @@ export function toClosureJS(
     options: ts.CompilerOptions, fileNames: string[], settings: Settings,
     allDiagnostics: ts.Diagnostic[],
     files?: Map<string, string>): {jsFiles: Map<string, string>, externs: string}|null {
+  let rootDir = ts.sys.resolvePath(settings.googModuleRootDir || process.cwd());
   // Parse and load the program without tsickle processing.
   // This is so:
   // - error messages point at the original source text
@@ -152,12 +258,35 @@ export function toClosureJS(
     googmodule: true,
     es5Mode: false,
     tsickleTyped: !settings.isUntyped,
+    tsickleFunctionBodiesTyped: !settings.isUntypedFunctionBodies,
     prelude: '',
   };
 
   const tsickleHost: tsickle.TsickleHost = {
     shouldSkipTsickleProcessing: (fileName) => fileNames.indexOf(fileName) === -1,
-    pathToModuleName: cliSupport.pathToModuleName,
+    pathToModuleName: (context, fileName) => {
+      if(settings.googModuleRootDir) {
+        //Deal with relative paths, absolute paths, and paths based on CWD,
+        //for context and fileName.
+        if(context.substr(0, settings.googModuleRootDir.length) == settings.googModuleRootDir) {
+          context = rootDir + context.substr(settings.googModuleRootDir.length);
+        }
+
+        let relative = fileName;
+        if(relative[0] == '.') {
+          relative = path.resolve(path.dirname(context), fileName);
+        }
+        if(relative[0] == '/') {
+          relative = path.relative(rootDir, relative);
+        }
+        if(relative.substr(0, settings.googModuleRootDir.length) == settings.googModuleRootDir) {
+          relative = relative.substr(settings.googModuleRootDir.length+1);
+        }
+        return cliSupport.pathToModuleName(context, relative);
+      } else {
+        return cliSupport.pathToModuleName(context, fileName);
+      }
+    },
     shouldIgnoreWarningsForPath: (filePath) => false,
     fileNameToModuleId: (fileName) => fileName,
   };
@@ -190,8 +319,13 @@ function main(args: string[]): number {
     return 1;
   }
 
-  // Run tsickle+TSC to convert inputs to Closure JS files.
-  let closure = toClosureJS(config.options, config.fileNames, settings, diagnostics);
+  let closure:{jsFiles:Map<string,string>, externs:string}|null;
+  if(settings.devMode) {
+    closure = toClosureJSDevMode(config.options, config.fileNames, settings, diagnostics);
+  } else {
+    // Run tsickle+TSC to convert inputs to Closure JS files.
+    closure = toClosureJS(config.options, config.fileNames, settings, diagnostics);
+  }
   if (closure === null) {
     console.error(tsickle.formatDiagnostics(diagnostics));
     return 1;

@@ -24,6 +24,7 @@ export interface TsickleCompilerHostOptions {
   googmodule: boolean;
   es5Mode: boolean;
   tsickleTyped: boolean;
+  tsickleFunctionBodiesTyped: boolean;
   prelude: string;
 }
 
@@ -217,7 +218,7 @@ export class TsickleCompilerHost implements ts.CompilerHost {
     if (isDefinitions && this.environment.shouldSkipTsickleProcessing(fileName)) return sourceFile;
 
     let {output, externs, diagnostics, sourceMap} =
-        annotate(program, sourceFile, {untyped: !this.options.tsickleTyped});
+        annotate(program, sourceFile, {untyped: !this.options.tsickleTyped, untypedFunctionBodies: !this.options.tsickleFunctionBodiesTyped});
     if (externs) {
       this.externs[fileName] = externs;
     }

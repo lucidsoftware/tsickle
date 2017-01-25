@@ -147,10 +147,10 @@ export function parse(comment: string): {tags: Tag[], warnings?: string[]}|null 
         tagName = 'return';
       }
       if (arrayIncludes(JSDOC_TAGS_BLACKLIST, tagName)) {
-        warnings.push(`@${tagName} annotations are redundant with TypeScript equivalents`);
+        // warnings.push(`@${tagName} annotations are redundant with TypeScript equivalents`);
         continue;  // Drop the tag so Closure won't process it.
       } else if (arrayIncludes(JSDOC_TAGS_WITH_TYPES, tagName) && text[0] === '{') {
-        warnings.push('type annotations (using {...}) are redundant with TypeScript types');
+        // warnings.push('type annotations (using {...}) are redundant with TypeScript types');
         continue;
       }
 

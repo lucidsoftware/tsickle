@@ -26,6 +26,11 @@ export interface Options {
    */
   untyped?: boolean;
   /**
+   * If true, convert every type within a function body to the Closure
+   * {?} type, which means "don't check types".
+   */
+  untypedFunctionBodies?: boolean;
+  /**
    * If provided a function that logs an internal warning.
    * These warnings are not actionable by an end user and should be hidden
    * by default.
@@ -330,7 +335,24 @@ class ClosureRewriter extends Rewriter {
     }
     let translator = new TypeTranslator(typeChecker, context, this.options.typeBlackListPaths);
     translator.warn = msg => this.debugWarn(context, msg);
-    return translator.translate(type);
+    let translated = translator.translate(type);
+
+    if (this.options.untypedFunctionBodies) {
+      if(!hasModifierFlag(context, VISIBILITY_FLAGS)) {
+        for(let c = context.parent; c; c = c.parent) {
+          if(c.kind == ts.SyntaxKind.FunctionDeclaration ||
+            c.kind == ts.SyntaxKind.Constructor ||
+            c.kind == ts.SyntaxKind.MethodDeclaration ||
+            c.kind == ts.SyntaxKind.GetAccessor ||
+            c.kind == ts.SyntaxKind.SetAccessor) {
+            translated = '?';
+            break;
+          }
+        }
+      }
+    }
+
+    return translated;
   }
 
   /**
