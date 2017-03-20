@@ -182,7 +182,10 @@ export class TypeTranslator {
       reportInaccessibleThisError: doNothing,
     };
     builder.buildSymbolDisplay(sym, writer, this.node);
-    return str;
+
+    //If we're writing code that came from clutz and will later be compiled and/or
+    //type-checked by Closure, get rid of the dummy clutz namespace.
+    return str.replace(/ಠ_ಠ\.clutz\./g, '');
   }
 
   translate(type: ts.Type): string {
