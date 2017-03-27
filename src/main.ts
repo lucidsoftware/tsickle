@@ -183,7 +183,7 @@ export interface ClosureJSOptions {
   tsicklePasses: tsickle.Pass[];
 }
 
-function getDefaultClosureJSOptions(fileNames: string[], settings: Settings, rootDir: string): ClosureJSOptions {
+function getDefaultClosureJSOptions(fileNames: string[], settings: Settings, rootDir: string, projectDir: string): ClosureJSOptions {
   return {
     tsickleCompilerHostOptions: {
       googmodule: true,
@@ -194,7 +194,9 @@ function getDefaultClosureJSOptions(fileNames: string[], settings: Settings, roo
     tsickleHost: {
       shouldSkipTsickleProcessing: (fileName) => fileNames.indexOf(fileName) === -1,
       pathToModuleName: (context, fileName) => {
-        if(settings.googModuleRootDir) {
+        if(settings.googModuleProjectName) {
+          return tsickle.projectNameSensitivePathToModuleName(fileName, rootDir, projectDir, context, cliSupport.pathToModuleName, settings.googModuleProjectName);
+        } else if(settings.googModuleRootDir) {
           //Deal with relative paths, absolute paths, and paths based on CWD,
           //for context and fileName.
           if(context.substr(0, settings.googModuleRootDir.length) == settings.googModuleRootDir) {
@@ -287,7 +289,10 @@ function toClosureJSDevMode(
 
         let absPath = ts.sys.resolvePath(jsName);
         let relativePath = path.relative(rootDir, absPath);
-        let {output} = tsickle.processES5(relativePath, relativePath, result.outputText, cliSupport.pathToModuleName);
+        let {output} = tsickle.processES5(relativePath, relativePath, result.outputText, (context, fileName) => {
+          const projectDir: string = options.project || '.';
+          return tsickle.projectNameSensitivePathToModuleName(fileName, rootDir, projectDir, context, cliSupport.pathToModuleName, settings.googModuleProjectName);
+        });
         jsFiles.set(jsName, output);
       }
     }
@@ -306,7 +311,7 @@ export function toClosureJS(
     {jsFiles: Map<string, string>, externs: string}|null {
   const rootDir = ts.sys.resolvePath(settings.googModuleRootDir || process.cwd());
   const closureJSOptions: ClosureJSOptions = {
-    ...getDefaultClosureJSOptions(fileNames, settings, rootDir),
+    ...getDefaultClosureJSOptions(fileNames, settings, rootDir, options.project || '.'),
     ...partialClosureJSOptions
   };
   // Parse and load the program without tsickle processing.
