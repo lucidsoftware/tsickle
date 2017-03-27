@@ -38,6 +38,19 @@ export interface Settings {
   /** When converting modules to goog format, module names should be
    * relative to this location */
   googModuleRootDir?:string;
+
+  /** The goog module project name */
+  googModuleProjectName?:string;
+}
+
+export interface SettingsKeys {
+  'externs'?: string;
+  'untyped'?: boolean;
+  'untypedFunctionBodies'?: boolean;
+  'verbose'?: boolean;
+  'devmode'?: boolean;
+  'googModuleRootDir'?: string;
+  'googModuleProjectName'?: string;
 }
 
 function usage() {
@@ -97,6 +110,9 @@ function loadSettingsFromArgs(args: string[]): {settings: Settings, tscArgs: str
       case 'googModuleRootDir':
         settings.googModuleRootDir = parsedArgs[flag];
         break;
+      case 'googModuleProjectName':
+        settings.googModuleProjectName = parsedArgs[flag];
+        break;
       case '_':
         // This is part of the minimist API, and holds args after the '--'.
         break;
@@ -121,7 +137,7 @@ function loadSettingsFromArgs(args: string[]): {settings: Settings, tscArgs: str
  * @param args tsc command-line arguments.
  */
 function loadTscConfig(args: string[], allDiagnostics: ts.Diagnostic[]):
-    {options: ts.CompilerOptions, fileNames: string[]}|null {
+    {options: ts.CompilerOptions, fileNames: string[], tsickleSettings: SettingsKeys}|null {
   // Gather tsc options/input files from command line.
   // Bypass visibilty of parseCommandLine, see
   // https://github.com/Microsoft/TypeScript/issues/2620
@@ -143,6 +159,10 @@ function loadTscConfig(args: string[], allDiagnostics: ts.Diagnostic[]):
     allDiagnostics.push(error);
     return null;
   }
+  let tsickleSettings = {};
+  if (json.tsickle) {
+    tsickleSettings = json.tsickle;
+  }
   ({options, fileNames, errors} =
        ts.parseJsonConfigFileContent(json, ts.sys, projectDir, options, configFileName));
   if (errors.length > 0) {
@@ -153,7 +173,7 @@ function loadTscConfig(args: string[], allDiagnostics: ts.Diagnostic[]):
   // if file arguments were given to the typescript transpiler than transpile only those files
   fileNames = tsFileArguments.length > 0 ? tsFileArguments : fileNames;
 
-  return {options, fileNames};
+  return {options, fileNames, tsickleSettings};
 }
 
 /**
@@ -317,6 +337,46 @@ function main(args: string[]): number {
   if (config === null) {
     console.error(tsickle.formatDiagnostics(diagnostics));
     return 1;
+  }
+
+  for (let tsickleSettingsKey in config.tsickleSettings) {
+    switch(tsickleSettingsKey) {
+      case 'externs':
+        if (!settings.hasOwnProperty('externsPath')) {
+          settings.externsPath = config.tsickleSettings.externs;
+        }
+        break;
+      case 'untyped':
+        if (!settings.hasOwnProperty('isUntyped')) {
+          settings.isUntyped = config.tsickleSettings.untyped || false;
+        }
+        break;
+      case 'untypedFunctionBodies':
+        if (!settings.hasOwnProperty('isUntypedFunctionBodies')) {
+          settings.isUntypedFunctionBodies = config.tsickleSettings.untypedFunctionBodies || false;
+        }
+        break;
+      case 'verbose':
+        if (!settings.hasOwnProperty('verbose')) {
+          settings.verbose = config.tsickleSettings.verbose;
+        }
+        break;
+      case 'devmode':
+        if (!settings.hasOwnProperty('devMode')) {
+          settings.devMode = config.tsickleSettings.devmode;
+        }
+        break;
+      case 'googModuleRootDir':
+        if (!settings.hasOwnProperty('googModuleRootDir')) {
+          settings.googModuleRootDir = config.tsickleSettings.googModuleRootDir;
+        }
+        break;
+      case 'googModuleProjectName':
+        if (!settings.hasOwnProperty('googModuleProjectName')) {
+          settings.googModuleProjectName = config.tsickleSettings.googModuleProjectName;
+        }
+        break;
+    }
   }
 
   let closure:{jsFiles:Map<string,string>, externs:string}|null;
