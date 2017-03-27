@@ -239,7 +239,10 @@ function toClosureJSDevMode(
 
         let absPath = ts.sys.resolvePath(jsName);
         let relativePath = path.relative(rootDir, absPath);
-        let {output} = tsickle.processES5(relativePath, relativePath, result.outputText, cliSupport.pathToModuleName);
+        let {output} = tsickle.processES5(relativePath, relativePath, result.outputText, (context, fileName) => {
+          const projectDir: string = options.project || '.';
+          return tsickle.projectNameSensitivePathToModuleName(fileName, rootDir, projectDir, context, cliSupport.pathToModuleName, settings.googModuleProjectName);
+        });
         jsFiles.set(jsName, output);
       }
     }
@@ -285,7 +288,10 @@ export function toClosureJS(
   const tsickleHost: tsickle.TsickleHost = {
     shouldSkipTsickleProcessing: (fileName) => fileNames.indexOf(fileName) === -1,
     pathToModuleName: (context, fileName) => {
-      if(settings.googModuleRootDir) {
+      if(settings.googModuleProjectName) {
+        const projectDir: string = options.project || '.';
+        return tsickle.projectNameSensitivePathToModuleName(fileName, rootDir, projectDir, context, cliSupport.pathToModuleName, settings.googModuleProjectName);
+      } else if(settings.googModuleRootDir) {
         //Deal with relative paths, absolute paths, and paths based on CWD,
         //for context and fileName.
         if(context.substr(0, settings.googModuleRootDir.length) == settings.googModuleRootDir) {

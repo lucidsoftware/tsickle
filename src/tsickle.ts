@@ -8,6 +8,7 @@
 
 import {SourceMapGenerator} from 'source-map';
 import * as ts from 'typescript';
+import * as path from 'path';
 
 import * as jsdoc from './jsdoc';
 import {getIdentifierText, Rewriter, unescapeName} from './rewriter';
@@ -1254,4 +1255,30 @@ export function annotate(
     tsOpts?: ts.CompilerOptions): Output {
   assertTypeChecked(file);
   return new Annotator(program, file, options, host, tsOpts).annotate();
+}
+
+export function projectNameSensitivePathToModuleName(fileName: string, rootDir: string, projectDir: string, context: string, defaultPathToModuleName: (context: string, fileName: string) => string, googModuleProjectName?: string): string {
+  if(googModuleProjectName) {
+    if (context && (fileName.startsWith('./') || fileName.startsWith('../'))) {
+      const contextAbsolutePath = path.resolve(rootDir, context);
+      const indexOfProjectDirInContext = contextAbsolutePath.indexOf(projectDir);
+      if (indexOfProjectDirInContext > -1) {
+        const normalizedRelativeImportPath = path.normalize(path.dirname(context) + '/' + fileName);
+        const importAbsolutePath = path.resolve(rootDir, normalizedRelativeImportPath);
+        const importProjectIndex = importAbsolutePath.indexOf(projectDir);
+        if (importProjectIndex > -1) {
+          const relativeToProject = importAbsolutePath.substr(importProjectIndex + projectDir.length);
+          return defaultPathToModuleName(context, `${googModuleProjectName}${relativeToProject}`);
+        }
+      }
+    }
+
+    const absolutePath = path.resolve(rootDir, fileName);
+    const indexOfProjectDir = absolutePath.indexOf(projectDir);
+    if (indexOfProjectDir > -1) {
+      const relativeToProject = absolutePath.substr(indexOfProjectDir + projectDir.length);
+      return defaultPathToModuleName(context, `${googModuleProjectName}${relativeToProject}`);
+    }
+  }
+  return defaultPathToModuleName(context, fileName);
 }
