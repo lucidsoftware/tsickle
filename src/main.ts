@@ -430,7 +430,11 @@ function main(args: string[]): number {
 
   for (let fileName of toArray(closure.jsFiles.keys())) {
     mkdirp.sync(path.dirname(fileName));
-    fs.writeFileSync(fileName, closure.jsFiles.get(fileName));
+    let src = closure.jsFiles.get(fileName);
+    if(!settings.isTyped || settings.isUntypedFunctionBodies) {
+      src = "/** @fileoverview @suppress {accessControls,ambiguousFunctionDecl,checkDebuggerStatement,checkRegExp,checkTypes,checkVars,closureDepMethodUsageChecks,constantProperty,const,deprecated,duplicate,es5Strict,externsValidation,extraRequire,fileoverviewTags,globalThis,invalidCasts,misplacedTypeAnnotation,missingProperties,missingProvide,missingRequire,missingReturn,newCheckTypes,nonStandardJsDocs,reportUnknownTypes,strictModuleDepCheck,suspiciousCode,undefinedNames,undefinedVars,unknownDefines,uselessCode,visibility} */\n" + src;
+    }
+    fs.writeFileSync(fileName, src);
   }
 
   if (settings.externsPath) {
