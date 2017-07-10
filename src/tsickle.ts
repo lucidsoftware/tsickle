@@ -40,7 +40,12 @@ export interface AnnotatorOptions {
    * "don't check types".
    */
   untyped?: boolean;
-  /** If provided, a set of paths whose types should always generate as {?}. */
+  /**
+   * If true, convert every type within a function body to the Closure
+   * {?} type, which means "don't check types".
+   */
+  untypedFunctionBodies?: boolean;
+  /**  /** If provided, a set of paths whose types should always generate as {?}. */
   typeBlackListPaths?: Set<string>;
   /**
    * Convert shorthand "/index" imports to full path (include the "/index").
@@ -533,7 +538,22 @@ class ClosureRewriter extends Rewriter {
     if (!type) {
       type = typeChecker.getTypeAtLocation(context);
     }
-    return this.newTypeTranslator(context).translate(type);
+    let translated = this.newTypeTranslator(context).translate(type);
+
+    if (this.options.untypedFunctionBodies) {
+      if (!hasModifierFlag(context, FIELD_DECLARATION_MODIFIERS)) {
+        for (let c = context.parent; c; c = c.parent) {
+          if (c.kind == ts.SyntaxKind.FunctionDeclaration || c.kind == ts.SyntaxKind.Constructor ||
+              c.kind == ts.SyntaxKind.MethodDeclaration || c.kind == ts.SyntaxKind.GetAccessor ||
+              c.kind == ts.SyntaxKind.SetAccessor) {
+            translated = '?';
+            break;
+          }
+        }
+      }
+    }
+
+    return translated;
   }
 
   newTypeTranslator(context: ts.Node) {
@@ -1905,4 +1925,34 @@ export function getGeneratedExterns(externs: {[fileName: string]: string}): stri
     allExterns += externs[fileName];
   }
   return allExterns;
+}
+
+export function projectNameSensitivePathToModuleName(
+    fileName: string, rootDir: string, projectDir: string, context: string,
+    defaultPathToModuleName: (context: string, fileName: string) => string,
+    googModuleProjectName?: string): string {
+  if (googModuleProjectName) {
+    if (context && (fileName.startsWith('./') || fileName.startsWith('../'))) {
+      const contextAbsolutePath = path.resolve(rootDir, context);
+      const indexOfProjectDirInContext = contextAbsolutePath.indexOf(projectDir);
+      if (indexOfProjectDirInContext > -1) {
+        const normalizedRelativeImportPath = path.normalize(path.dirname(context) + '/' + fileName);
+        const importAbsolutePath = path.resolve(rootDir, normalizedRelativeImportPath);
+        const importProjectIndex = importAbsolutePath.indexOf(projectDir);
+        if (importProjectIndex > -1) {
+          const relativeToProject =
+              importAbsolutePath.substr(importProjectIndex + projectDir.length);
+          return defaultPathToModuleName(context, `${googModuleProjectName}${relativeToProject}`);
+        }
+      }
+    }
+
+    const absolutePath = path.resolve(rootDir, fileName);
+    const indexOfProjectDir = absolutePath.indexOf(projectDir);
+    if (indexOfProjectDir > -1) {
+      const relativeToProject = absolutePath.substr(indexOfProjectDir + projectDir.length);
+      return defaultPathToModuleName(context, `${googModuleProjectName}${relativeToProject}`);
+    }
+  }
+  return defaultPathToModuleName(context, fileName);
 }

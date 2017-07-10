@@ -145,12 +145,12 @@ export function parse(comment: string): {tags: Tag[], warnings?: string[]}|null 
       }
       let type: string|undefined;
       if (JSDOC_TAGS_BLACKLIST.has(tagName)) {
-        warnings.push(`@${tagName} annotations are redundant with TypeScript equivalents`);
+        // warnings.push(`@${tagName} annotations are redundant with TypeScript equivalents`);
         continue;  // Drop the tag so Closure won't process it.
       } else if (JSDOC_TAGS_WITH_TYPES.has(tagName) && text[0] === '{') {
-        warnings.push(
-            `the type annotation on @${tagName} is redundant with its TypeScript type, ` +
-            `remove the {...} part`);
+        // warnings.push(
+        //     `the type annotation on @${tagName} is redundant with its TypeScript type, ` +
+        //     `remove the {...} part`);
         continue;
       } else if (tagName === 'suppress') {
         const suppressMatch = text.match(/^\{(.*)\}(.*)$/);
