@@ -468,6 +468,9 @@ class ClosureRewriter extends Rewriter {
         // "@extends {Class}" because this is just a type hint.
         const typeChecker = this.typeChecker;
         const sym = typeChecker.getSymbolAtLocation(impl.expression);
+        if (!sym) {
+          continue;
+        }
         let alias: ts.Symbol = sym;
         if (sym.flags & ts.SymbolFlags.TypeAlias) {
           // It's implementing a type alias.  Follow the type alias back
