@@ -920,11 +920,12 @@ class Annotator extends ClosureRewriter {
             this.typeChecker.typeToString(t) +
                 ` has a string index type but is accessed using dotted access. ` +
                 `Quoting the access.`);
-        this.writeNode(pae.expression);
-        this.emit('["');
-        this.writeNode(pae.name);
-        this.emit('"]');
-        return true;
+        // Previously, the code below changed the dotted into a quoted access.
+        // this.writeNode(pae.expression);
+        // this.emit('["');
+        // this.writeNode(pae.name);
+        // this.emit('"]');
+        return false;
       case ts.SyntaxKind.Decorator:
         if (this.currentDecoratorConverter) {
           return this.currentDecoratorConverter.maybeProcessDecorator(node as ts.Decorator);
