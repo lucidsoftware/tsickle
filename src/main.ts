@@ -194,7 +194,8 @@ function main(args: string[]): number {
       });
   if (result.diagnostics.length) {
     console.error(tsickle.formatDiagnostics(result.diagnostics));
-    return 1;
+    const hasError = !result.diagnostics.every(d => d.category != ts.DiagnosticCategory.Error);
+    return hasError ? 1 : 0;
   }
 
   if (settings.externsPath) {
