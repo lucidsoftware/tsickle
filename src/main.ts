@@ -107,9 +107,10 @@ function loadTscConfig(args: string[]):
 
   // Read further settings from tsconfig.json.
   const projectDir = options.project || '.';
-  const configFileName = path.join(projectDir, 'tsconfig.json');
+  const configFileName = 'tsconfig.json';
+  const configPath = path.join(projectDir, configFileName);
   const {config: json, error} =
-      ts.readConfigFile(configFileName, path => fs.readFileSync(path, 'utf-8'));
+      ts.readConfigFile(configPath, path => fs.readFileSync(path, 'utf-8'));
   if (error) {
     return {options: {}, fileNames: [], errors: [error]};
   }
