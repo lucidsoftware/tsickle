@@ -969,11 +969,13 @@ class Annotator extends ClosureRewriter {
         // Properties containing non-JS identifier names can only be accessed with quotes.
         if (!isValidClosurePropertyName(propName)) return false;
         const symName = this.typeChecker.symbolToString(quotedPropSym);
-        this.debugWarn(
-            eae,
-            `Declared property ${symName} accessed with quotes. ` +
-                `This can lead to renaming bugs. A better fix is to use 'declare interface' ` +
-                `on the declaration.`);
+        if (symName.length > 1) {
+          this.debugWarn(
+              eae,
+              `Declared property ${symName} accessed with quotes. ` +
+                  `This can lead to renaming bugs. A better fix is to use 'declare interface' ` +
+                  `on the declaration.`);
+        }
         // Previously, the code below changed the quoted into a non-quoted access.
         // this.writeNode(eae.expression);
         // this.emit(`.${propName}`);
