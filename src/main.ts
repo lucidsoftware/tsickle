@@ -32,6 +32,9 @@ export interface Settings {
 
   /** If true, log internal debug warnings to the console. */
   verbose?: boolean;
+
+  /** If true, do not warn about not knowning a symbol's type. */
+  disableTypeTranslatorWarnings?: boolean;
 }
 
 function usage() {
@@ -72,6 +75,9 @@ function loadSettingsFromArgs(args: string[]): {settings: Settings, tscArgs: str
         break;
       case 'disableAutoQuoting':
         settings.disableAutoQuoting = true;
+        break;
+      case 'disableTypeTranslatorWarnings':
+        settings.disableTypeTranslatorWarnings = true;
         break;
       case '_':
         // This is part of the minimist API, and holds args after the '--'.
@@ -151,6 +157,7 @@ export function toClosureJS(
     transformTypesToClosure: true,
     typeBlackListPaths: new Set(),
     disableAutoQuoting: settings.disableAutoQuoting,
+    disableTypeTranslatorWarnings: settings.disableTypeTranslatorWarnings,
     untyped: false,
     logWarning: (warning) => console.error(tsickle.formatDiagnostics([warning])),
     options,

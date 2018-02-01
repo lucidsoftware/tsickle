@@ -50,6 +50,7 @@ export interface AnnotatorHost {
    * If true, do not modify quotes around property accessors.
    */
   disableAutoQuoting?: boolean;
+  disableTypeTranslatorWarnings?: boolean;
 }
 
 /**
@@ -551,7 +552,9 @@ abstract class ClosureRewriter extends Rewriter {
     const translator = new typeTranslator.TypeTranslator(
         this.typeChecker, context, this.host.typeBlackListPaths, this.symbolsToAliasedNames,
         (sym: ts.Symbol) => this.ensureSymbolDeclared(sym));
-    translator.warn = msg => this.debugWarn(context, msg);
+    if (!this.host.disableTypeTranslatorWarnings) {
+      translator.warn = msg => this.debugWarn(context, msg);
+    }
     return translator;
   }
 
